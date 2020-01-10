@@ -1,0 +1,73 @@
+# This function was written to identify all the images associated with an individual Lyft scene, 
+# extract those images into a unique scene file, and produce a video of those images in the correct order. 
+# The Lyft dataset can be found at https://level5.lyft.com/dataset/
+# The video creation part of this function was heavily influenced by
+# https://theailearner.com/2018/10/15/creating-video-from-images-using-opencv-python/
+
+def lyft_scene_video_maker(scene_number, image_type, FPS):
+
+    # FPS is frames per second for the produces video. 
+    
+    from matplotlib import pyplot as plt
+    import os
+    import cv2
+    import numpy as np
+    import glob
+
+    # The following lines extract all the tokens (primary keys) for the samples in a scene. 
+    all_tokens_for_scene = []
+
+    current_token = level5data.scene[scene_number]['first_sample_token']
+    last_token = level5data.scene[scene_number]['last_sample_token']
+
+    while current_token != last_token:
+        all_tokens_for_scene.append(current_token)
+        current_token = level5data.get("sample", current_token)["next"]  
+
+    all_tokens_for_scene.append(last_token)
+
+    # This section ensures that a folder is ready to receive the created images. 
+    this_scene_number = f'{scene_number:03}'
+    file_folder = r'/mnt/hgfs/v1.01-train/Processed_Images/'+str(image_type)+r'/'+str(this_scene_number)+r'Scene/'+str(image_type)
+    if not os.path.exists(file_folder):
+        os.makedirs(file_folder)
+    
+    # The following section extracts all the images in a scene and saves them to a location on the host OS. 
+    token_order_number = 0
+
+    for token in all_tokens_for_scene:
+    
+        this_token = token
+
+        this_image = level5data.render_sample_data(level5data.get('sample_data', 
+                                                level5data.get('sample', this_token)['data'][image_type])['token'])
+
+        this_token_order_number = f'{token_order_number:05}'
+    
+        file_location = str(file_folder)+str(this_scene_number)+'Scene'+str(this_token_order_number)+'Token'+image_type+'.jpeg'
+    
+        plt.savefig(file_location)
+        
+        token_order_number += 1
+    
+    # This section ensures that a folder is ready to receive created videos. 
+    video_file_folder = r'/mnt/hgfs/v1.01-train/Processed_Images/'+str(image_type)+r' videos/'
+    if not os.path.exists(video_file_folder):
+        os.makedirs(video_file_folder)
+        
+    # This section readies the images to be included in the video. 
+    img_array = []
+    for filename in glob.glob(str(file_folder)+'*.jpeg'):
+        img = cv2.imread(filename)
+        height, width, layers = img.shape
+        size = (width,height)
+        img_array.append(img)
+    
+    # This line sets the parameters for the video. 
+    # You absolutely need!!! to include the '.avi' at the end of the output filename.  Otherwise, the file will not export. 
+    out = cv2.VideoWriter(str(video_file_folder)+str(this_scene_number)+'SceneVideo.avi',cv2.VideoWriter_fourcc(*'DIVX'), FPS, size)
+
+    # This section writes the images to the video. 
+    for i in range(len(img_array)):
+        out.write(img_array[i])
+    out.release() 
